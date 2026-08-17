@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	vectorscan "github.com/badrikmodi/VectorScan"
@@ -115,10 +116,14 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	}
 
 	var extra any
-	if err := dec.Decode(&extra); err == nil {
+	err := dec.Decode(&extra)
+	if errors.Is(err, io.EOF) {
+		return nil
+	}
+	if err == nil {
 		return errors.New("request body must contain exactly one JSON value")
 	}
-	return nil
+	return err
 }
 
 func writeDBError(w http.ResponseWriter, err error) {
