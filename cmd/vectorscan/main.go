@@ -14,10 +14,26 @@ import (
 	"github.com/badrikmodi/VectorScan/httpapi"
 )
 
-func main() {
-	db := vectorscan.NewDB()
-	api := httpapi.New(db)
+const defaultSnapshotPath = "vectorscan.snapshot.json"
 
+func main() {
+	snapshotPath := os.Getenv("VECTORSCAN_SNAPSHOT")
+	if snapshotPath == "" {
+		snapshotPath = defaultSnapshotPath
+	}
+
+	db, err := vectorscan.Load(snapshotPath)
+	switch {
+	case err == nil:
+		log.Printf("loaded snapshot %s (%d vectors, dimension %d)", snapshotPath, db.Len(), db.Dimension())
+	case errors.Is(err, os.ErrNotExist):
+		db = vectorscan.NewDB()
+		log.Printf("no snapshot found at %s; starting empty", snapshotPath)
+	default:
+		log.Fatalf("load snapshot: %v", err)
+	}
+
+	api := httpapi.New(db)
 	server := &http.Server{
 		Addr:              ":8080",
 		Handler:           api,
@@ -48,4 +64,9 @@ func main() {
 			log.Printf("graceful shutdown failed: %v", err)
 		}
 	}
+
+	if err := db.Save(snapshotPath); err != nil {
+		log.Fatalf("save snapshot: %v", err)
+	}
+	log.Printf("saved snapshot %s (%d vectors)", snapshotPath, db.Len())
 }
